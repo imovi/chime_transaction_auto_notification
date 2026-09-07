@@ -624,6 +624,10 @@ class TelegramBotService:
 
     def handle_power_off(self, target_identifier: Optional[str] = None, callback_id: Optional[str] = None, chat_id: Optional[str] = None) -> None:
         """Explicitly shut down / power off a cloud phone and pause its auto-monitoring."""
+        if target_identifier and str(target_identifier).strip().lower() == "all":
+            self.handle_disconnect_all(callback_id=callback_id, chat_id=chat_id)
+            return
+
         if callback_id:
             self.notifier.answer_callback_query(callback_id, text="🛑 Powering off cloud phone...")
         self.notifier.send_chat_action("typing", chat_id=chat_id)
@@ -661,6 +665,10 @@ class TelegramBotService:
 
     def handle_power_on(self, target_identifier: Optional[str] = None, callback_id: Optional[str] = None, chat_id: Optional[str] = None) -> None:
         """Explicitly power on / boot a cloud phone and enable auto-monitoring."""
+        if target_identifier and str(target_identifier).strip().lower() == "all":
+            self.handle_connect_all(callback_id=callback_id, chat_id=chat_id)
+            return
+
         if callback_id:
             self.notifier.answer_callback_query(callback_id, text="⚡️ Powering on cloud phone...")
         self.notifier.send_chat_action("typing", chat_id=chat_id)
@@ -1633,28 +1641,56 @@ class TelegramBotService:
             if text.startswith("/setpin") or "set pin" in text or "device pin" in text:
                 self.handle_setpin(raw_text, chat_id=sender_id)
             # 2. Power Controls (Explicit On/Off)
-            elif text.startswith("/power off") or text.startswith("/power_off") or text.startswith("/stop") or text.startswith("/shutdown"):
+            elif (
+                text.startswith("/power off")
+                or text.startswith("/power_off")
+                or text.startswith("/stop")
+                or text.startswith("/shutdown")
+                or text == "/off"
+                or text.startswith("/off ")
+                or text == "off"
+                or text.startswith("off ")
+                or text == "stop"
+                or text.startswith("stop ")
+            ):
                 parts = raw_text.split()
                 target = None
-                if text.startswith("/power"):
+                if text.startswith("/power") or text.startswith("power"):
                     target = parts[2] if len(parts) >= 3 else None
                 else:
                     target = parts[1] if len(parts) >= 2 else None
-                self.handle_power_off(target, chat_id=sender_id)
-            elif text.startswith("/power on") or text.startswith("/power_on") or text.startswith("/start_device") or (text.startswith("/power") and "on" in text):
+
+                if target and target.lower() == "all":
+                    self.handle_disconnect_all(chat_id=sender_id)
+                else:
+                    self.handle_power_off(target, chat_id=sender_id)
+            elif (
+                text.startswith("/power on")
+                or text.startswith("/power_on")
+                or text.startswith("/start_device")
+                or (text.startswith("/power") and "on" in text)
+                or text == "/on"
+                or text.startswith("/on ")
+                or text == "on"
+                or text.startswith("on ")
+            ):
                 parts = raw_text.split()
                 target = None
-                if text.startswith("/power"):
+                if text.startswith("/power") or text.startswith("power"):
                     target = parts[2] if len(parts) >= 3 else None
                 else:
                     target = parts[1] if len(parts) >= 2 else None
-                self.handle_power_on(target, chat_id=sender_id)
+
+                if target and target.lower() == "all":
+                    self.handle_connect_all(chat_id=sender_id)
+                else:
+                    self.handle_power_on(target, chat_id=sender_id)
             # 3. Batch & single connect/disconnect
-            elif text in ("/connect all", "/connect_all", "connect all"):
+            elif text in ("/connect all", "/connect_all", "connect all", "/on all", "on all", "/start all", "start all"):
                 self.handle_connect_all(chat_id=sender_id)
-            elif text in ("/disconnect all", "/disconnect_all", "/pause all", "disconnect all"):
+            elif text in ("/disconnect all", "/disconnect_all", "/pause all", "disconnect all", "pause all", "/stop all", "stop all", "/off all", "off all"):
                 self.handle_disconnect_all(chat_id=sender_id)
-            elif text.startswith("/connect"):
+            elif text.startswith("/connect") or text.startswith("connect "):
                 parts = raw_text.split()
                 if len(parts) >= 2:
                     if parts[1].lower() == "all":
@@ -1663,7 +1699,7 @@ class TelegramBotService:
                         self.handle_toggle_device(parts[1], state=True, chat_id=sender_id)
                 else:
                     self.handle_devices_overview(chat_id=sender_id)
-            elif text.startswith("/disconnect") or text.startswith("/pause"):
+            elif text.startswith("/disconnect") or text.startswith("/pause") or text == "pause" or text.startswith("pause "):
                 parts = raw_text.split()
                 if len(parts) >= 2:
                     if parts[1].lower() == "all":
@@ -1671,7 +1707,11 @@ class TelegramBotService:
                     else:
                         self.handle_toggle_device(parts[1], state=False, chat_id=sender_id)
                 else:
-                    self.handle_devices_overview(chat_id=sender_id)
+                    active = self.get_active_device(chat_id=sender_id)
+                    if active:
+                        self.handle_toggle_device(active.serial, state=False, chat_id=sender_id)
+                    else:
+                        self.handle_devices_overview(chat_id=sender_id)
             # 3. Device switching & overview
             elif text in ("/devices", "/device", "/list") or "all devices" in text:
                 self.handle_devices_overview(chat_id=sender_id)

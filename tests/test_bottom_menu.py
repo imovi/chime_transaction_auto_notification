@@ -110,9 +110,22 @@ class TestBottomMenu(unittest.TestCase):
         service.process_update({"message": {"chat": {"id": 12345}, "text": "/stop 226"}})
         service.handle_power_off.assert_called_with("226", chat_id="12345")
 
+        service.process_update({"message": {"chat": {"id": 12345}, "text": "/off"}})
+        service.handle_power_off.assert_called_with(None, chat_id="12345")
+
+        service.handle_disconnect_all = MagicMock()
+        service.handle_connect_all = MagicMock()
+
+        service.process_update({"message": {"chat": {"id": 12345}, "text": "/stop all"}})
+        service.handle_disconnect_all.assert_called_once_with(chat_id="12345")
+
         service.process_update({"message": {"chat": {"id": 12345}, "text": "/power on 226"}})
         service.handle_power_on.assert_called_with("226", chat_id="12345")
+
+        service.process_update({"message": {"chat": {"id": 12345}, "text": "/on all"}})
+        service.handle_connect_all.assert_called_once_with(chat_id="12345")
 
 
 if __name__ == "__main__":
     unittest.main()
+
