@@ -87,11 +87,17 @@ class ShellManager:
         return self.execute(phone_id, f"pm clear {package_name}")
 
     def launch_app(self, phone_id: str, package_name: str) -> str:
-        """Launch app using monkey launcher command."""
-        return self.execute(
-            phone_id,
-            f"monkey -p {package_name} -c android.intent.category.LAUNCHER 1",
-        )
+        """Launch app using monkey launcher command with fallback to am start."""
+        try:
+            return self.execute(
+                phone_id,
+                f"monkey -p {package_name} -c android.intent.category.LAUNCHER 1",
+            )
+        except Exception:
+            return self.execute(
+                phone_id,
+                f"am start -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -p {package_name}",
+            )
 
     def stop_app(self, phone_id: str, package_name: str) -> str:
         """Force stop an application."""

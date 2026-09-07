@@ -186,13 +186,21 @@ class TelegramBotService:
                 return False
 
         # 2. Ensure Chime is active and unlocked
-        flow = self.get_flow_for_device(active.device_id, chat_id=chat_id)
-        unlock_res = flow.ensure_open_and_unlocked(pin=active.pin)
-        if unlock_res.get("needs_pin"):
-            self.notifier.send_pin_request(active.serial, active.name, chat_id=chat_id)
+        try:
+            flow = self.get_flow_for_device(active.device_id, chat_id=chat_id)
+            unlock_res = flow.ensure_open_and_unlocked(pin=active.pin)
+            if unlock_res.get("needs_pin"):
+                self.notifier.send_pin_request(active.serial, active.name, chat_id=chat_id)
+                return False
+            return True
+        except Exception as e:
+            logger.warning("Failed to prepare or unlock device #%s: %s", active.serial, e)
+            self.notifier.send_message(
+                f"⚠️ *Could not launch or unlock Chime on #{active.serial}:* {e}\n"
+                "Please verify the cloud phone is responsive and try again.",
+                chat_id=chat_id,
+            )
             return False
-
-        return True
 
     def handle_manual_refresh(self, callback_id: Optional[str] = None, chat_id: Optional[str] = None) -> None:
         """Trigger screen refresh and manual check for payments on active device."""
