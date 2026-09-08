@@ -22,6 +22,7 @@ class TestBottomMenu(unittest.TestCase):
         # Check button rows
         flat_buttons = [btn["text"] for row in kb["keyboard"] for btn in row]
         self.assertIn("🔄 Refresh & Check Now", flat_buttons)
+        self.assertIn("🔙 Back & Refresh", flat_buttons)
         self.assertIn("💳 Check Balance", flat_buttons)
         self.assertIn("📜 Recent History", flat_buttons)
         self.assertIn("📸 Screen Capture", flat_buttons)
@@ -41,6 +42,7 @@ class TestBottomMenu(unittest.TestCase):
 
         # Mock handlers
         service.handle_manual_refresh = MagicMock()
+        service.handle_back_and_refresh = MagicMock()
         service.handle_check_balance = MagicMock()
         service.handle_recent_history = MagicMock()
         service.handle_screenshot = MagicMock()
@@ -48,9 +50,15 @@ class TestBottomMenu(unittest.TestCase):
         service.handle_devices_overview = MagicMock()
         service.handle_setpin = MagicMock()
 
-        # 1. Refresh
+        # 1. Refresh & Back+Refresh
         service.process_update({"message": {"chat": {"id": 12345}, "text": "🔄 Refresh"}})
         service.handle_manual_refresh.assert_called_once()
+
+        service.process_update({"message": {"chat": {"id": 12345}, "text": "🔙 Back & Refresh"}})
+        service.handle_back_and_refresh.assert_called_once()
+
+        service.process_update({"message": {"chat": {"id": 12345}, "text": "/back"}})
+        self.assertEqual(service.handle_back_and_refresh.call_count, 2)
 
         # 2. Balance
         service.process_update({"message": {"chat": {"id": 12345}, "text": "💳 Balance"}})
@@ -83,6 +91,10 @@ class TestBottomMenu(unittest.TestCase):
         # 9. Callback to Re-open Bottom Menu
         service.process_update({"callback_query": {"id": "cb1", "from": {"id": 12345}, "data": "action_open_bottom_menu"}})
         service.notifier.send_bottom_menu.assert_called_once()
+
+        # 9b. Callback for Back & Refresh
+        service.process_update({"callback_query": {"id": "cb_br", "from": {"id": 12345}, "data": "action_back_refresh"}})
+        service.handle_back_and_refresh.assert_called_with(callback_id="cb_br", chat_id="12345")
 
         # 10. Callback to Toggle Device Connect/Disconnect
         service.handle_toggle_device = MagicMock()

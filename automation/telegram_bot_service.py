@@ -259,6 +259,86 @@ class TelegramBotService:
             logger.error("Error during manual refresh: %s", e)
             self.notifier.send_message(f"❌ *Manual Refresh Failed:* {e}", chat_id=chat_id)
 
+    def handle_back_and_refresh(self, callback_id: Optional[str] = None, chat_id: Optional[str] = None) -> None:
+        """Step back 1 screen on active cloud phone (e.g. from transaction details/history) and pull-to-refresh."""
+        active = self.get_active_device(chat_id=chat_id)
+        if not active:
+            if callback_id:
+                self.notifier.answer_callback_query(callback_id, text="No devices found.")
+            self.notifier.send_message(
+                "⚠️ *No Cloud Devices Found*\n\n"
+                "No cloud phones are registered under your client account. "
+                "Please configure and sync your GeeLark account in the Web Admin Portal.",
+                chat_id=chat_id,
+            )
+            return
+
+        if callback_id:
+            self.notifier.answer_callback_query(callback_id, text=f"🔙 Stepping back & refreshing #{active.serial}...")
+        self.notifier.send_chat_action("typing", chat_id=chat_id)
+        self.notifier.send_message(
+            f"🔙 *Back & Refresh Triggered on #{active.serial}*\n"
+            "Stepping back 1 screen (returning to main screen) and refreshing Chime...",
+            chat_id=chat_id,
+        )
+
+        if not self.ensure_device_ready(active, chat_id=chat_id):
+            return
+
+        try:
+            client, _ = self.get_tenant_geelark_client(chat_id)
+            from geelark.shell import ShellManager
+            shell_mgr = ShellManager(client)
+
+            # 1. Send Android Back keyevent (input keyevent 4) to navigate back 1 screen
+            shell_mgr.back(active.device_id)
+            time.sleep(1.0)
+
+            # 2. Pull down to refresh Chime screen on active device
+            shell_mgr.swipe(active.device_id, 360, 400, 360, 950, duration_ms=400)
+            time.sleep(1.2)
+
+            # 3. Check for newly arrived deposits / updated balance
+            elements = shell_mgr.get_screen_elements(active.device_id)
+            balance = TransactionParser.extract_balance_from_elements(elements) or active.latest_balance or "Unavailable"
+            if balance != "Unavailable":
+                self.monitor.device_mgr.update_balance(active.device_id, balance)
+                try:
+                    t_id = self.db.get_primary_tenant_id() if hasattr(self.db, "get_primary_tenant_id") else "tenant-kamruzzaman"
+                    self.db.update_device_balance(t_id, active.device_id, balance)
+                except Exception as e:
+                    logger.debug("Error updating DB device balance: %s", e)
+
+            msg = (
+                "✅ *Back & Refresh Completed!*\n"
+                "━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"📱 *Device:* `#{active.serial} {active.name}`\n"
+                f"💳 *Current Balance:* `{balance}`\n"
+                "━━━━━━━━━━━━━━━━━━━━━━"
+            )
+            self.notifier.send_control_panel(text=msg, active_device_name=self.get_active_label(chat_id=chat_id), chat_id=chat_id)
+        except Exception as e:
+            logger.error("Error during back and refresh: %s", e)
+            self.notifier.send_message(f"❌ *Back & Refresh Failed:* {e}", chat_id=chat_id)
+
+    def handle_back(self, callback_id: Optional[str] = None, chat_id: Optional[str] = None) -> None:
+        """Send Android Back keyevent on active cloud phone."""
+        active = self.get_active_device(chat_id=chat_id)
+        if not active:
+            if callback_id:
+                self.notifier.answer_callback_query(callback_id, text="No devices found.")
+            return
+        if callback_id:
+            self.notifier.answer_callback_query(callback_id, text=f"🔙 Back key sent to #{active.serial}")
+        try:
+            client, _ = self.get_tenant_geelark_client(chat_id)
+            from geelark.shell import ShellManager
+            shell_mgr = ShellManager(client)
+            shell_mgr.back(active.device_id)
+            self.notifier.send_message(f"🔙 *Back key pressed on #{active.serial}*", chat_id=chat_id)
+        except Exception as e:
+            self.notifier.send_message(f"❌ *Back Failed:* {e}", chat_id=chat_id)
+
     def handle_check_balance(self, callback_id: Optional[str] = None, chat_id: Optional[str] = None) -> None:
         """Fetch and report current balance for active device."""
         active = self.get_active_device(chat_id=chat_id)
@@ -455,12 +535,16 @@ class TelegramBotService:
                 {"text": "🛑 Power OFF" if is_running else "⚡️ Power ON", "callback_data": f"action_power_off_{dev.serial}" if is_running else f"action_power_on_{dev.serial}"},
             ],
             [
+                {"text": "🔄 Refresh Screen", "callback_data": "action_refresh"},
+                {"text": "🔙 Back & Refresh", "callback_data": "action_back_refresh"},
+            ],
+            [
                 {"text": "📸 View Screenshot", "callback_data": "action_screen"},
                 {"text": "💳 Check Balance", "callback_data": "action_balance"},
             ],
             [
                 {"text": "🔐 Set Chime PIN", "callback_data": f"action_pin_prompt_{dev.serial}"},
-                {"text": "🔄 Refresh Screen", "callback_data": "action_refresh"},
+                {"text": "🔙 Android Back", "callback_data": "action_back"},
             ],
             [
                 {"text": "📋 All Devices List", "callback_data": "action_devices_overview"},
@@ -1536,6 +1620,10 @@ class TelegramBotService:
 
             if data == "action_refresh":
                 self.handle_manual_refresh(callback_id=cb_id, chat_id=sender_id)
+            elif data == "action_back_refresh":
+                self.handle_back_and_refresh(callback_id=cb_id, chat_id=sender_id)
+            elif data == "action_back":
+                self.handle_back(callback_id=cb_id, chat_id=sender_id)
             elif data == "action_balance":
                 self.handle_check_balance(callback_id=cb_id, chat_id=sender_id)
             elif data == "action_history":
@@ -1735,6 +1823,15 @@ class TelegramBotService:
                 self.notifier.send_bottom_menu(active_device_name=self.get_active_label(chat_id=sender_id), chat_id=sender_id)
                 self.notifier.send_control_panel(active_device_name=self.get_active_label(chat_id=sender_id), chat_id=sender_id)
             # 5. Actions
+            elif (
+                text in ("/back_refresh", "/backrefresh", "/back", "back", "🔙 back & refresh", "back & refresh", "back and refresh", "back refresh")
+                or "back and refresh" in text
+                or "back & refresh" in text
+                or "back refresh" in text
+            ):
+                self.handle_back_and_refresh(chat_id=sender_id)
+            elif text in ("/android_back", "android back"):
+                self.handle_back(chat_id=sender_id)
             elif text in ("/refresh", "/check") or "refresh" in text:
                 self.handle_manual_refresh(chat_id=sender_id)
             elif text == "/balance" or "balance" in text:

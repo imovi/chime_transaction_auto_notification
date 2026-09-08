@@ -64,7 +64,7 @@ class TelegramNotifier:
         """Return resizable and minimizable bottom ReplyKeyboardMarkup."""
         return {
             "keyboard": [
-                [{"text": "🔄 Refresh & Check Now"}],
+                [{"text": "🔄 Refresh & Check Now"}, {"text": "🔙 Back & Refresh"}],
                 [{"text": "💳 Check Balance"}, {"text": "📜 Recent History"}],
                 [{"text": "📸 Screen Capture"}, {"text": "📱 Device Status"}],
                 [{"text": "📱 Switch Device"}, {"text": "📋 All Devices"}],
@@ -271,6 +271,7 @@ class TelegramNotifier:
             "inline_keyboard": [
                 [
                     {"text": "🔄 Refresh & Check Now", "callback_data": "action_refresh"},
+                    {"text": "🔙 Back & Refresh", "callback_data": "action_back_refresh"},
                 ],
                 [
                     {"text": "💳 Check Balance", "callback_data": "action_balance"},
