@@ -192,6 +192,16 @@ class TelegramBotService:
             if unlock_res.get("needs_pin"):
                 self.notifier.send_pin_request(active.serial, active.name, chat_id=chat_id)
                 return False
+            if unlock_res.get("connection_error"):
+                self.notifier.send_message(
+                    f"⚠️ *No Internet / Network Error on #{active.serial} {active.name}!*\n"
+                    "━━━━━━━━━━━━━━━━━━━━━━\n"
+                    "🌐 Chime is showing: `Please check your connection.`\n"
+                    "🔄 The bot force-closed the app from recents and restarted it, but network is still unreachable.\n"
+                    "💡 Please verify proxy / Wi-Fi configuration in GeeLark console and try again.",
+                    chat_id=chat_id,
+                )
+                return False
             return True
         except Exception as e:
             logger.warning("Failed to prepare or unlock device #%s: %s", active.serial, e)

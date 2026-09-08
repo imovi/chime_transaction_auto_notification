@@ -48,9 +48,29 @@ class ChimeMonitor:
         self.resolved_phone_name: Optional[str] = None
         self._flows: Dict[str, ChimeAutomationFlow] = {}
         self._pin_notified: set[str] = set()
+        self._conn_error_notified: Dict[str, float] = {}
         self.latest_balance: Optional[str] = None
         self.latest_balance_time: float = 0.0
         self.on_transaction = None
+
+    def send_admin_alert(self, message: str) -> None:
+        """Send an alert message to all configured administrators."""
+        recipients = set()
+        if self.config.telegram_chat_id:
+            recipients.add(str(self.config.telegram_chat_id).strip())
+        try:
+            subs = self.db.get_all_subscribers(active_only=True)
+            for s in subs:
+                if s.role == "full_controller" and s.chat_id:
+                    recipients.add(str(s.chat_id).strip())
+        except Exception as e:
+            logger.debug("Error retrieving admin subscribers for alert: %s", e)
+
+        for chat_id in recipients:
+            try:
+                self.notifier.send_message(message, chat_id=chat_id)
+            except Exception as e:
+                logger.warning("Could not send admin alert to %s: %s", chat_id, e)
 
     def get_flow(self, phone_id: Optional[str] = None) -> ChimeAutomationFlow:
         """Get or create ChimeAutomationFlow instance for specified phone."""
@@ -150,6 +170,28 @@ class ChimeMonitor:
                 return []
             else:
                 self._pin_notified.discard(dev.device_id)
+
+            if unlock_res.get("connection_error"):
+                now = time.time()
+                last_notified = self._conn_error_notified.get(dev.device_id, 0.0)
+                # Rate limit admin alert to once every 5 minutes (300 seconds)
+                if (now - last_notified) > 300:
+                    self._conn_error_notified[dev.device_id] = now
+                    alert_msg = (
+                        f"⚠️ *No Internet / Connection Error Detected!*\n"
+                        "━━━━━━━━━━━━━━━━━━━━━━\n"
+                        f"📱 *Device:* `#{dev.serial} {dev.name}`\n"
+                        "🌐 *Status:* `Please check your connection.`\n"
+                        "🔄 *Auto-Recovery:* App was force-stopped from recents and restarted, but network is still unreachable.\n"
+                        "💡 *Action Required:* Please verify proxy / Wi-Fi configuration in GeeLark console."
+                    )
+                    self.send_admin_alert(alert_msg)
+                logger.warning("Device #%s (%s) has persistent connection error. Skipping poll pass.", dev.serial, dev.name)
+                return []
+            else:
+                if dev.device_id in self._conn_error_notified:
+                    self._conn_error_notified.pop(dev.device_id, None)
+                    logger.info("Device #%s (%s) connection restored.", dev.serial, dev.name)
         except Exception as e:
             logger.debug("Error checking foreground/PIN on %s: %s", dev.name, e)
 

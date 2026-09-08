@@ -94,10 +94,20 @@ class ShellManager:
                 f"monkey -p {package_name} -c android.intent.category.LAUNCHER 1",
             )
         except Exception:
+            pass
+
+        try:
             return self.execute(
                 phone_id,
                 f"am start -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -p {package_name}",
             )
+        except Exception:
+            pass
+
+        return self.execute(
+            phone_id,
+            f"monkey -p {package_name} 1 || am start -p {package_name}",
+        )
 
     def stop_app(self, phone_id: str, package_name: str) -> str:
         """Force stop an application."""
