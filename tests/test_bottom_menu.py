@@ -88,6 +88,11 @@ class TestBottomMenu(unittest.TestCase):
         service.process_update({"message": {"chat": {"id": 12345}, "text": "❌ Hide Menu"}})
         service.notifier.hide_bottom_menu.assert_called_once()
 
+        # 8b. Help Command
+        service.handle_help = MagicMock()
+        service.process_update({"message": {"chat": {"id": 12345}, "text": "/help"}})
+        service.handle_help.assert_called_once_with(chat_id="12345")
+
         # 9. Callback to Re-open Bottom Menu
         service.process_update({"callback_query": {"id": "cb1", "from": {"id": 12345}, "data": "action_open_bottom_menu"}})
         service.notifier.send_bottom_menu.assert_called_once()
@@ -95,6 +100,10 @@ class TestBottomMenu(unittest.TestCase):
         # 9b. Callback for Back & Refresh
         service.process_update({"callback_query": {"id": "cb_br", "from": {"id": 12345}, "data": "action_back_refresh"}})
         service.handle_back_and_refresh.assert_called_with(callback_id="cb_br", chat_id="12345")
+
+        # 9c. Callback for Help
+        service.process_update({"callback_query": {"id": "cb_hp", "from": {"id": 12345}, "data": "action_help"}})
+        service.handle_help.assert_called_with(callback_id="cb_hp", chat_id="12345")
 
         # 10. Callback to Toggle Device Connect/Disconnect
         service.handle_toggle_device = MagicMock()

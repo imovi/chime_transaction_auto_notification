@@ -1582,6 +1582,77 @@ class TelegramBotService:
             return
         self.handle_remove_user(parts[1].strip(), admin_chat_id=admin_chat_id)
 
+    def handle_help(self, callback_id: Optional[str] = None, chat_id: Optional[str] = None) -> None:
+        """Send complete bot commands guide with use cases and syntax."""
+        if callback_id:
+            self.notifier.answer_callback_query(callback_id, text="📖 Opening Command Guide...")
+        self.notifier.send_chat_action("typing", chat_id=chat_id)
+
+        is_admin_user = self.is_admin(chat_id)
+
+        lines = [
+            "📖 *Chime Bot Commands & Use Cases Guide*",
+            "━━━━━━━━━━━━━━━━━━━━━━",
+            "নিচে বটের সব কমান্ড এবং সেগুলোর কাজ বিস্তারিত দেওয়া হলো:\n",
+            "🎛 *Navigation & Menus (মেনু ও নেভিগেশন)*",
+            "• `/menu` বা `/start` — মূল কন্ট্রোল প্যানেল ও বাটন মেনু ওপেন করে।",
+            "• `/help` — সব কমান্ডের পূর্ণাঙ্গ ব্যবহার নির্দেশিকা দেখায়।",
+            "• `/hide` — টেলিগ্রাম নিচের কিবোর্ড মিনিমাইজ বা হাইড করে।\n",
+            "🔄 *Monitoring & Balance (চেকিং ও রিফ্রেশ)*",
+            "• `/refresh` বা `refresh` — সক্রিয় ডিভাইসে স্ক্রিন রিফ্রেশ করে লাইভ ব্যালেন্স ও ডিপোজিট চেক করে।",
+            "• `/back` বা `/back_refresh` — ট্রানজ্যাকশন ডিটেইলস/সাব-স্ক্রিন থেকে ১ ধাপ ব্যাক এসে রিফ্রেশ করে।",
+            "• `/balance` — অ্যাক্টিভ Chime একাউন্টের বর্তমান চেকিং ব্যালেন্স দেখায়।",
+            "• `/balances` বা `/balance all` — সব ডিভাইসের ব্যালেন্স একসাথে লিস্ট আকারে দেখায়।",
+            "• `/history` বা `/tx` — সাম্প্রতিক Chime ডিপোজিট লেনদেনের হিস্ট্রি দেখায়।",
+            "• `/screen` বা `/screenshot` — ক্লাউড ফোনের বর্তমান লাইভ স্ক্রিনশট তুলে পাঠায়।",
+            "• `/status` — ক্লাউড ফোনের পাওয়ার স্টেট ও মনিটরিং স্ট্যাটাস দেখায়।\n",
+            "🛑 *Power & Monitoring Controls (ডিভাইস অন/অফ)*",
+            "• `/off` বা `/stop` — বর্তমান সক্রিয় ফোন শাটডাউন ও Chime মনিটরিং বন্ধ করে।",
+            "• `/off <serial>` (যেমন: `/off 226`) — নির্দিষ্ট ডিভাইস বন্ধ ও মনিটরিং পজ করে।",
+            "• `/off all` বা `/pause all` — সবকটি ডিভাইস একসাথে শাটডাউন ও মনিটরিং বন্ধ করে।",
+            "• `/on` বা `/power on` — সক্রিয় ক্লাউড ফোন অন করে Chime খুলে মনিটরিং শুরু করে।",
+            "• `/on <serial>` (যেমন: `/on 226`) — নির্দিষ্ট ডিভাইস অন ও মনিটরিং শুরু করে।",
+            "• `/on all` বা `/connect all` — সব ফোন একসাথে অন ও Chime মনিটরিং শুরু করে।\n",
+            "📱 *Device Management (ডিভাইস কন্ট্রোল)*",
+            "• `/devices` বা `/list` — সব GeeLark ফোনের তালিকা, স্ট্যাটাস ও বাটন দেখায়।",
+            "• `/switch <serial>` (যেমন: `/switch 226`) — নির্দিষ্ট ফোনকে কারেন্ট অ্যাক্টিভ ডিভাইস করে।",
+            "• `/setpin <pin>` (যেমন: `/setpin 1122`) — অ্যাক্টিভ ডিভাইসের Chime আনলক পিন সেট করে।",
+            "• `/setpin <serial> <pin>` — নির্দিষ্ট ডিভাইসের Chime পিন সেট করে।",
+            "• `/scan` বা `/sync` — GeeLark একাউন্ট থেকে নতুন ক্লাউড ফোন ডাটাবেজে সিঙ্ক করে।",
+        ]
+
+        if is_admin_user:
+            lines.extend([
+                "\n👑 *User & Admin Management (ইউজার পরিচালনা)*",
+                "• `/users` বা `/admins` — অ্যাডমিন ও মেম্বারদের তালিকা ও কন্ট্রোল প্যানেল দেখায়।",
+                "• `/add_admin <chat_id> [name]` — নতুন অ্যাডমিন যুক্ত করে (ফুল এক্সেস পায়)।",
+                "• `/add_member <chat_id> [name]` — নতুন মেম্বার যুক্ত করে (শুধু ডিপোজিট অ্যালার্ট পাবে, নো মেনু)।",
+                "• `/promote <chat_id>` — মেম্বারকে অ্যাডমিনে উন্নীত করে।",
+                "• `/demote <chat_id>` — অ্যাডমিনকে সাধারণ মেম্বারে ডিমোট করে।",
+                "• `/remove <chat_id>` — ইউজারকে পুরোপুরি রিমুভ করে সাবস্ক্রিপশন বাতিল করে।",
+            ])
+
+        lines.append("━━━━━━━━━━━━━━━━━━━━━━")
+        lines.append("💡 *Tip:* বাটন মেনুর মাধ্যমেও এই সব কমান্ড এক ক্লিকেই ব্যবহার করা যায়।")
+
+        help_keyboard = [
+            [
+                {"text": "🏠 Main Menu", "callback_data": "action_menu"},
+                {"text": "📋 All Devices", "callback_data": "action_devices_overview"},
+            ],
+            [
+                {"text": "🔄 Refresh Now", "callback_data": "action_refresh"},
+                {"text": "🔙 Back & Refresh", "callback_data": "action_back_refresh"},
+            ],
+        ]
+
+        self.notifier.send_control_panel(
+            text="\n".join(lines),
+            custom_keyboard=help_keyboard,
+            active_device_name=self.get_active_label(chat_id=chat_id),
+            chat_id=chat_id,
+        )
+
     def process_update(self, update: dict) -> None:
         """Dispatch incoming update to appropriate handler."""
         # Check Callback Query (Button click)
@@ -1695,6 +1766,8 @@ class TelegramBotService:
                 if cb_id:
                     self.notifier.answer_callback_query(cb_id, text="🎛 Opening bottom menu...")
                 self.notifier.send_bottom_menu(active_device_name=self.get_active_label(chat_id=sender_id), chat_id=sender_id)
+            elif data == "action_help":
+                self.handle_help(callback_id=cb_id, chat_id=sender_id)
             elif data == "action_menu":
                 if cb_id:
                     self.notifier.answer_callback_query(cb_id)
@@ -1829,9 +1902,8 @@ class TelegramBotService:
                 self.notifier.send_control_panel(active_device_name=self.get_active_label(chat_id=sender_id), chat_id=sender_id)
             elif text in ("/hide", "/close", "/dismiss") or "hide" in text or "close" in text:
                 self.notifier.hide_bottom_menu(chat_id=sender_id)
-            elif text in ("/help",) or "help" in text:
-                self.notifier.send_bottom_menu(active_device_name=self.get_active_label(chat_id=sender_id), chat_id=sender_id)
-                self.notifier.send_control_panel(active_device_name=self.get_active_label(chat_id=sender_id), chat_id=sender_id)
+            elif text in ("/help", "help", "/commands", "commands", "/guide", "guide") or "command" in text or "help" in text:
+                self.handle_help(chat_id=sender_id)
             # 5. Actions
             elif (
                 text in ("/back_refresh", "/backrefresh", "/back", "back", "🔙 back & refresh", "back & refresh", "back and refresh", "back refresh")

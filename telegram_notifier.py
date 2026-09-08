@@ -287,6 +287,7 @@ class TelegramNotifier:
                 ],
                 [
                     {"text": "👥 Manage Users", "callback_data": "action_users_overview"},
+                    {"text": "📖 Help & Commands", "callback_data": "action_help"},
                 ],
             ]
         }
